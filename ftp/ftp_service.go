@@ -29,6 +29,13 @@ func GetCurrentPath(ftp *goftp.FTP) string {
 	return curPath
 }
 
+func MakeBuildDir(ftp *goftp.FTP, dir string) {
+	var err error
+	if err = ftp.Mkd(dir); err != nil {
+		panic(err)
+	}
+}
+
 func GetFolders(ftp *goftp.FTP, path string) []string {
 	var err error
 	var filesAndFolders []string
@@ -36,7 +43,7 @@ func GetFolders(ftp *goftp.FTP, path string) []string {
 		panic(err)
 	}
 
-	var folders = make([]string, 3)
+	var folders = make([]string, 0)
 	for i := 0; i < len(filesAndFolders); i++ {
 		var file string = filesAndFolders[i]
 		if strings.ContainsAny(file, "type=dir") {
