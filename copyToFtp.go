@@ -18,7 +18,10 @@ type Configuration struct {
 }
 
 func main() {
-	var config Configuration = getConfig()
+	configPath := os.Args[1]
+	fmt.Println(configPath)
+
+	var config Configuration = getConfig(configPath)
 	var ftpConnection *goftp.FTP
 	var builds []os.FileInfo = GetAllBuilds(config.BuildsPath)
 
@@ -43,8 +46,8 @@ func main() {
 	ftpConnection.Quit()
 }
 
-func getConfig() Configuration {
-	file, _ := os.Open("conf.json")
+func getConfig(path string) Configuration {
+	file, _ := os.Open(path)
 	decoder := json.NewDecoder(file)
 	configuration := Configuration{}
 	err := decoder.Decode(&configuration)
