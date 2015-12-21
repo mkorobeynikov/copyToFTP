@@ -3,8 +3,6 @@ import "fmt"
 import "encoding/json"
 import (
 	"os"
-/*	"github.com/dutchcoders/goftp"
-	"github.com/mkorobeynikov/copyToFTP/ftp"*/
 	"io/ioutil"
 	"github.com/mkorobeynikov/copyToFTP/ftp"
 	"github.com/dutchcoders/goftp"
@@ -12,11 +10,11 @@ import (
 )
 
 type Configuration struct {
-	FtpHost      string `json:"ftpHost"`
-	FtpUser      string `json:"ftpUser"`
-	FtpPassword  string `json:"ftpPassword"`
-	FtpBuildPath string `json:"ftpBuildPath"`
-	BuildsPath   string `json:"buildsPath"`
+	FtpHost       string `json:"ftpHost"`
+	FtpUser       string `json:"ftpUser"`
+	FtpPassword   string `json:"ftpPassword"`
+	FtpBuildPaths []string `json:"ftpBuildPaths"`
+	BuildsPath    string `json:"buildsPath"`
 }
 
 func main() {
@@ -33,10 +31,15 @@ func main() {
 	fmt.Println("Connection to ftp", config.FtpHost, "successfully established")
 	fmt.Println("Current Path is", currentPath)
 
-	ftp.MakeBuildDir(ftpConnection, config.FtpBuildPath + "/" + lastBuild.Name())
+	fmt.Println(config.FtpBuildPaths)
 
-	CopyBuildToFTP(config, lastBuild, ftpConnection)
+	for i := 0; i < len(config.FtpBuildPaths); i++ {
+		ftp.MakeBuildDir(ftpConnection, config.FtpBuildPaths[i] + "/" + lastBuild.Name())
+		var path = config.FtpBuildPaths[i]
+		CopyBuildToFTP(config, lastBuild, ftpConnection, config.BuildsPath, path)
+	}
 
+	fmt.Println("Builds transfered successfully. Exit.")
 	ftpConnection.Quit()
 }
 
@@ -60,20 +63,20 @@ func GetAllBuilds(path string) []os.FileInfo {
 	return files
 }
 
-func CopyBuildToFTP(config Configuration, lastBuild os.FileInfo, ftpConnection *goftp.FTP) {
-	var buildFiles []os.FileInfo = GetBuildFiles(config.BuildsPath + "/" + lastBuild.Name())
+func CopyBuildToFTP(config Configuration, lastBuild os.FileInfo, ftpConnection *goftp.FTP, buildsPath string, ftpBuildPaths string) {
+	var buildFiles []os.FileInfo = GetBuildFiles(buildsPath + "/" + lastBuild.Name())
 	for i := 0; i < len(buildFiles); i++ {
 		var fileInfo os.FileInfo = buildFiles[i]
 		var file *os.File
 		var err error
-		if file, err = os.Open(config.BuildsPath + "/" + lastBuild.Name() + "/" + fileInfo.Name()); err != nil {
+		if file, err = os.Open(buildsPath + "/" + lastBuild.Name() + "/" + fileInfo.Name()); err != nil {
 			panic(err)
 		}
 		var reader io.Reader = (*os.File)(file)
-		if err := ftpConnection.Stor(config.FtpBuildPath + "/" + lastBuild.Name() + "/" + fileInfo.Name(), reader); err != nil {
+		if err := ftpConnection.Stor(ftpBuildPaths + "/" + lastBuild.Name() + "/" + fileInfo.Name(), reader); err != nil {
 			panic(err)
 		}
-		fmt.Println(file.Name(), "copied to", config.FtpBuildPath, "/", lastBuild.Name())
+		fmt.Println(file.Name(), "copied to", ftpBuildPaths, "/", lastBuild.Name())
 	}
 }
 
