@@ -2,6 +2,7 @@ BINNAME=cptoftp
 BUILDDIR=release
 
 all:
+	go get github.com/mitchellh/gox
 	go get
 	chmod +x ./build/*
 	mkdir ./$(BUILDDIR)/
