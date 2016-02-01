@@ -1,0 +1,8 @@
+{
+	"ftpHost": "",
+	"ftpUser": "",
+	"ftpPassword": "",
+	"ftpBuildPaths": ["", ""],
+	"buildsPath": "",
+	"Mode" : ""
+}

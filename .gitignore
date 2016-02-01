@@ -24,3 +24,7 @@ _testmain.go
 *.test
 *.prof
 *.iml
+
+conf.json
+release/
+copyToFTP
