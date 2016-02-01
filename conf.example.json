@@ -1,0 +1,16 @@
+{
+	// host:port
+	"ftpHost": "europe.upload.ucdn.com:21",
+	// ftp username
+	"ftpUser": "99999999.99999999",
+	// ftp password
+	"ftpPassword": "some_password",
+	// array of ftp destination paths
+	"ftpBuildPaths": [
+		"/opt/ftp/destination/directory/1/", 
+		"/opt/ftp/destination/directory/2/"
+	],
+	// note: no slash here
+	"buildsPath": "/opt/cptoftp/releases",
+	"Mode": "last" // or all
+}

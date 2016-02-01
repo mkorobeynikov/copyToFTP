@@ -1,49 +1,84 @@
 package main
-import "fmt"
-import "encoding/json"
+
 import (
-	"os"
-	"io/ioutil"
-	"github.com/mkorobeynikov/copyToFTP/ftp"
-	"github.com/dutchcoders/goftp"
+	"encoding/json"
 	"io"
+	"io/ioutil"
+	"log"
+	"os"
+	"strings"
+
+	"github.com/dutchcoders/goftp"
+	"github.com/mkorobeynikov/copyToFTP/ftp"
 )
 
 type Configuration struct {
-	FtpHost       string `json:"ftpHost"`
-	FtpUser       string `json:"ftpUser"`
-	FtpPassword   string `json:"ftpPassword"`
+	// FTP Host "example.com:21"
+	FtpHost string `json:"ftpHost"`
+
+	// FTP User
+	FtpUser string `json:"ftpUser"`
+
+	// FTP Password
+	FtpPassword string `json:"ftpPassword"`
+
+	// path to build direcory on FTP server
 	FtpBuildPaths []string `json:"ftpBuildPaths"`
-	BuildsPath    string `json:"buildsPath"`
+
+	// full path to buils dir
+	BuildsPath string `json:"buildsPath"`
+
+	// last | all. Default: last
+	Mode string `json:"Mode"`
 }
 
 func main() {
-	configPath := os.Args[1]
-	fmt.Println(configPath)
+	var configPath string
+	if len(os.Args) > 1 {
+		configPath = os.Args[1]
+	} else {
+		configPath = "conf.json"
+	}
+	log.Print(configPath)
 
 	var config Configuration = getConfig(configPath)
 	var ftpConnection *goftp.FTP
 	var builds []os.FileInfo = GetAllBuilds(config.BuildsPath)
 
-	var lastBuild os.FileInfo = builds[len(builds) - 1]
-	fmt.Println("Last build is", lastBuild.Name())
-
 	ftpConnection = ftp.GetFtpConnection(config.FtpHost, config.FtpUser, config.FtpPassword)
 	var currentPath string = ftp.GetCurrentPath(ftpConnection)
 
-	fmt.Println("Connection to ftp", config.FtpHost, "successfully established")
-	fmt.Println("Current Path is", currentPath)
+	log.Print("Connection to ftp ", config.FtpHost, " successfully established")
+	log.Print("Current Path is", currentPath)
 
-	fmt.Println(config.FtpBuildPaths)
+	log.Print(config.FtpBuildPaths)
 
-	for i := 0; i < len(config.FtpBuildPaths); i++ {
-		ftp.MakeBuildDir(ftpConnection, config.FtpBuildPaths[i] + "/" + lastBuild.Name())
-		var path = config.FtpBuildPaths[i]
-		CopyBuildToFTP(config, lastBuild, ftpConnection, config.BuildsPath, path)
+	if config.Mode == "all" {
+		log.Print("Mode: all builds.")
+		copyAllBuilds(builds, config, ftpConnection)
+	} else {
+		var lastBuild os.FileInfo = builds[len(builds)-1]
+		log.Print("Mode: last build.\nLast build is", lastBuild.Name())
+		copyBuild(lastBuild, config, ftpConnection)
 	}
 
-	fmt.Println("Builds transfered successfully. Exit.")
+	log.Print("Builds transfered successfully. Exit.")
 	ftpConnection.Quit()
+}
+
+func copyAllBuilds(builds []os.FileInfo, config Configuration, ftpConnection *goftp.FTP) {
+	for i := 0; i < len(builds); i++ {
+		log.Print(builds[i].Name())
+		copyBuild(builds[i], config, ftpConnection)
+	}
+}
+
+func copyBuild(build os.FileInfo, config Configuration, ftpConnection *goftp.FTP) {
+	for i := 0; i < len(config.FtpBuildPaths); i++ {
+		ftp.MakeBuildDir(ftpConnection, config.FtpBuildPaths[i]+"/"+build.Name())
+		var path = config.FtpBuildPaths[i]
+		ModeToFTP(config, build, ftpConnection, config.BuildsPath, path, 0)
+	}
 }
 
 func getConfig(path string) Configuration {
@@ -52,7 +87,7 @@ func getConfig(path string) Configuration {
 	configuration := Configuration{}
 	err := decoder.Decode(&configuration)
 	if err != nil {
-		fmt.Println("error:", err)
+		log.Fatal("error:", err)
 	}
 	return configuration
 }
@@ -61,25 +96,51 @@ func GetAllBuilds(path string) []os.FileInfo {
 	var err error
 	var files []os.FileInfo
 	if files, err = ioutil.ReadDir(path); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	return files
 }
 
-func CopyBuildToFTP(config Configuration, lastBuild os.FileInfo, ftpConnection *goftp.FTP, buildsPath string, ftpBuildPaths string) {
-	var buildFiles []os.FileInfo = GetBuildFiles(buildsPath + "/" + lastBuild.Name())
+func ModeToFTP(config Configuration, build os.FileInfo, ftpConnection *goftp.FTP, buildsPath string, ftpBuildPaths string, isRec int) {
+	log.Printf("%s\n%s\n\n", buildsPath, ftpBuildPaths)
+	var buildFiles []os.FileInfo
+	if isRec == 0 {
+		buildFiles = GetBuildFiles(buildsPath + "/" + build.Name())
+	} else {
+		buildFiles = GetBuildFiles(buildsPath)
+	}
 	for i := 0; i < len(buildFiles); i++ {
-		var fileInfo os.FileInfo = buildFiles[i]
-		var file *os.File
-		var err error
-		if file, err = os.Open(buildsPath + "/" + lastBuild.Name() + "/" + fileInfo.Name()); err != nil {
-			panic(err)
+		var (
+			fileInfo os.FileInfo = buildFiles[i]
+			file     *os.File
+			err      error
+			fpath    string
+			ftpfpath string
+		)
+		if fileInfo.IsDir() {
+			rBuildsPath := buildsPath + "/" + build.Name() + "/" + fileInfo.Name() + "/"
+			rFTPPath := ftpBuildPaths + "/" + strings.Replace(buildsPath, config.BuildsPath, "", -1) + "/" + build.Name() + "/" + fileInfo.Name()
+			ModeToFTP(config, build, ftpConnection, rBuildsPath, rFTPPath, 1)
+			continue
+		}
+		if isRec == 0 {
+			fpath = buildsPath + "/" + build.Name() + "/" + fileInfo.Name()
+		} else {
+			fpath = buildsPath + "/" + fileInfo.Name()
+		}
+		if file, err = os.Open(fpath); err != nil {
+			log.Fatal(err)
 		}
 		var reader io.Reader = (*os.File)(file)
-		if err := ftpConnection.Stor(ftpBuildPaths + "/" + lastBuild.Name() + "/" + fileInfo.Name(), reader); err != nil {
-			panic(err)
+		if isRec == 0 {
+			ftpfpath = ftpBuildPaths + "/" + build.Name() + "/" + fileInfo.Name()
+		} else {
+			ftpfpath = ftpBuildPaths + "/" + fileInfo.Name()
 		}
-		fmt.Println(file.Name(), "copied to", ftpBuildPaths, "/", lastBuild.Name())
+		if err := ftpConnection.Stor(ftpfpath, reader); err != nil {
+			log.Fatal(err)
+		}
+		log.Print(file.Name(), " copied to ", ftpfpath)
 	}
 }
 
@@ -87,15 +148,12 @@ func GetBuildFiles(path string) []os.FileInfo {
 	var err error
 	var filesAndFolders []os.FileInfo
 	if filesAndFolders, err = ioutil.ReadDir(path); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	var files = make([]os.FileInfo, 0)
 	for i := 0; i < len(filesAndFolders); i++ {
-		var file os.FileInfo = filesAndFolders[i]
-		if !file.IsDir() {
-			files = append(files, file)
-		}
+		files = append(files, filesAndFolders[i])
 	}
 	return files
 }

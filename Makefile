@@ -1,0 +1,12 @@
+BINNAME=cptoftp
+BUILDDIR=release
+
+all:
+	go get
+	chmod +x ./build/*
+	mkdir ./$(BUILDDIR)/
+	gox --output=$(BUILDDIR)"/{{.OS}}/{{.Arch}}/"$(BINNAME)
+	BUILDDIR=$(BUILDDIR) ./build/copy_config.sh
+
+clean: 
+	rm -rf ./$(BUILDDIR)/

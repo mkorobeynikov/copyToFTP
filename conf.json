@@ -1,7 +1,8 @@
 {
-  "ftpHost": "",
-  "ftpUser": "",
-  "ftpPassword": "",
-  "ftpBuildPaths": ["", ""],
-  "buildsPath": ""
+  "ftpHost": "europe.upload.cdn13.com:21",
+  "ftpUser": "1010357.1010357",
+  "ftpPassword": "EAwyYMbAOcXQBOGa",
+  "ftpBuildPaths": ["/ruskline_dump/"],
+  "buildsPath": "/opt/go/gopath/projects/copyToFTP/release",
+  "Mode": "all"
 }
